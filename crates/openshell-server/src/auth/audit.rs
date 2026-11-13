@@ -699,10 +699,10 @@ impl AuthzDenial<'_> {
     }
 }
 
-/// Longest identifier recorded on an event.
+/// Longest identifier or value recorded on an event.
 const MAX_ID_LEN: usize = 128;
 
-/// Cap an identifier so a caller cannot inflate events.
+/// Cap a value so a caller cannot inflate events.
 fn bounded(value: &str) -> String {
     if value.len() <= MAX_ID_LEN {
         return value.to_string();
@@ -851,8 +851,23 @@ fn api_activity<'a>(
     builder
 }
 
-/// Most resources one mutation record lists.
+/// Most resources one mutation record lists: the first ones recorded and
+/// the last, which is what the change produced.
 const MAX_RECORDED_RESOURCES: usize = 16;
+
+/// `data` with every string in it bounded.
+fn bounded_data(data: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match data {
+        Value::String(value) => Value::String(bounded(&value)),
+        Value::Array(values) => values.into_iter().map(bounded_data).collect(),
+        Value::Object(fields) => fields
+            .into_iter()
+            .map(|(key, value)| (bounded(&key), bounded_data(value)))
+            .collect(),
+        scalar => scalar,
+    }
+}
 
 /// Emit the record of a mutation that ended with `code`, or that never
 /// finished when `code` is `None`.
@@ -861,15 +876,17 @@ fn emit_mutation(request: &RequestContext, principal: &Principal, code: Option<C
     let mutation = std::mem::take(&mut *lock(&request.mutation));
     let ctx = crate::gateway_ocsf::context("", "");
     let mut builder = api_activity(&ctx, path, origin, principal);
-    let omitted = mutation
-        .resources
-        .len()
-        .saturating_sub(MAX_RECORDED_RESOURCES);
-    for resource in mutation.resources.into_iter().take(MAX_RECORDED_RESOURCES) {
+    let mut resources = mutation.resources;
+    let omitted = resources.len().saturating_sub(MAX_RECORDED_RESOURCES);
+    if omitted > 0 {
+        resources.drain(MAX_RECORDED_RESOURCES - 1..resources.len() - 1);
+    }
+    for resource in resources {
         builder = builder.resource(ResourceDetails {
             name: resource.name.as_deref().map(bounded),
             uid: resource.uid.as_deref().map(bounded),
-            ..resource
+            type_label: resource.type_label,
+            data: resource.data.map(bounded_data),
         });
     }
     let code = code.map(|code| match mutation.outcome {
