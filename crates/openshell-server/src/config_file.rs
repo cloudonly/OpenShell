@@ -1329,6 +1329,10 @@ pub enum ConfigFileError {
     )]
     UnsupportedVersion { version: u32 },
     #[error(
+        "invalid gateway config version; `openshell.version` must be the integer {SCHEMA_VERSION}"
+    )]
+    InvalidVersion,
+    #[error(
         "`{field}` is not allowed in the gateway config file — set the {env} env var or pass {cli} on the command line"
     )]
     SecretInFile {
@@ -1745,7 +1749,8 @@ fn preflight_error(
             "future_version"
         }
         ConfigFileError::UnsupportedVersion { .. } => "unsupported_version",
-        ConfigFileError::Parse { .. }
+        ConfigFileError::InvalidVersion
+        | ConfigFileError::Parse { .. }
         | ConfigFileError::MergedParse { .. }
         | ConfigFileError::InFile { .. }
         | ConfigFileError::SecretInFile { .. }
@@ -1893,7 +1898,10 @@ fn check_version(table: &toml::Table) -> Result<(), ConfigFileError> {
                 version: u32::try_from(*version).unwrap_or(u32::MAX),
             })
         }
-        Some(_) => Ok(()),
+        Some(toml::Value::Integer(_)) => Ok(()),
+        // A string or table here could be overwritten by a later file that
+        // declares the integer, so each file must declare it itself.
+        Some(_) => Err(ConfigFileError::InvalidVersion),
     }
 }
 
@@ -2014,6 +2022,17 @@ fn has_path(table: &toml::Table, path: &[String]) -> bool {
     }
 }
 
+/// The value at `path` in `table`.
+fn value_at<'a>(table: &'a toml::Table, path: &[String]) -> Option<&'a toml::Value> {
+    let (first, rest) = path.split_first()?;
+    let value = table.get(first)?;
+    if rest.is_empty() {
+        Some(value)
+    } else {
+        value_at(value.as_table()?, rest)
+    }
+}
+
 /// The file that sets the key at `path`: the last one, whose value wins, or
 /// the first one for a key that is wrong wherever it appears.
 fn locate<'a>(layers: &'a [Layer], path: &[String], first: bool) -> Option<&'a Path> {
@@ -2037,6 +2056,7 @@ fn describe_layers(layers: &[Layer]) -> String {
 /// Report a deserialization error against the file that holds the key.
 fn attribute_parse(
     layers: &[Layer],
+    merged: &toml::Table,
     error: &serde_path_to_error::Error<toml::de::Error>,
 ) -> ConfigFileError {
     let message = error.inner().message().trim_end();
@@ -2057,8 +2077,17 @@ fn attribute_parse(
     {
         path.push(name.to_string());
     }
-    // A missing key is a property of the merged table, not of one file.
-    let owner = if message.starts_with("missing field") {
+    // A missing key is a property of the merged table, not of one file. So is
+    // an error about a whole table that several files contribute to, such as a
+    // rule over two of its keys.
+    let spans_files = unknown.is_none()
+        && value_at(merged, &path).is_some_and(toml::Value::is_table)
+        && layers
+            .iter()
+            .filter(|layer| has_path(&layer.table, &path))
+            .count()
+            > 1;
+    let owner = if message.starts_with("missing field") || spans_files {
         None
     } else {
         locate(layers, &path, unknown.is_some())
@@ -2105,8 +2134,8 @@ fn attribute_semantic(layers: &[Layer], error: ConfigFileError) -> ConfigFileErr
 /// Deserialize and validate the merged table.
 fn finish_layered(layers: &[Layer], merged: toml::Table) -> Result<ConfigFile, ConfigFileError> {
     check_version(&merged)?;
-    let file: ConfigFile = serde_path_to_error::deserialize(toml::Value::Table(merged))
-        .map_err(|error| attribute_parse(layers, &error))?;
+    let file: ConfigFile = serde_path_to_error::deserialize(toml::Value::Table(merged.clone()))
+        .map_err(|error| attribute_parse(layers, &merged, &error))?;
     validate_loaded(file).map_err(|error| attribute_semantic(layers, error))
 }
 
@@ -4379,6 +4408,53 @@ ssh_gateway_port = 8080
             "{error}"
         );
         assert!(error.to_string().contains("10-backend.toml"), "{error}");
+    }
+
+    #[test]
+    fn layered_a_non_integer_version_is_rejected_even_when_a_later_file_overrides_it() {
+        let (_dir, base, frags) = layered_dir(
+            "[openshell]\nversion = \"two\"\n",
+            &[("10-ok.toml", "[openshell]\nversion = 2\n")],
+        );
+        let error = load_layered(Some(&base), Some(&frags)).unwrap_err();
+        assert!(matches!(error.root(), ConfigFileError::InvalidVersion));
+        assert!(error.to_string().contains("gateway.toml"), "{error}");
+
+        let (_dir, base, frags) =
+            layered_dir(BASE, &[("10-bad.toml", "[openshell]\nversion = \"two\"\n")]);
+        let error = load_layered(Some(&base), Some(&frags)).unwrap_err();
+        assert!(matches!(error.root(), ConfigFileError::InvalidVersion));
+        assert!(error.to_string().contains("10-bad.toml"), "{error}");
+    }
+
+    #[test]
+    fn layered_whole_table_error_across_files_names_the_merged_config() {
+        let log =
+            |body: &str| format!("[openshell]\nversion = 2\n[openshell.gateway.ocsf_log]\n{body}");
+        let (_dir, base, frags) = layered_dir(
+            &log("path = 'log'\nrotation = 'never'\nmax_files = 7\n"),
+            &[("10-path.toml", &log("path = 'other'\n"))],
+        );
+        let error = load_layered(Some(&base), Some(&frags)).unwrap_err();
+        assert!(
+            matches!(error.root(), ConfigFileError::MergedParse { .. }),
+            "{error}"
+        );
+        assert!(
+            error.to_string().contains("max_files requires daily"),
+            "{error}"
+        );
+
+        // One file owns the whole table, so it is named.
+        let (_dir, base, frags) = layered_dir(
+            "[openshell]\nversion = 2\n",
+            &[(
+                "10-log.toml",
+                &log("path = 'log'\nrotation = 'never'\nmax_files = 7\n"),
+            )],
+        );
+        let error = load_layered(Some(&base), Some(&frags)).unwrap_err();
+        assert!(error.to_string().contains("10-log.toml"), "{error}");
     }
 
     #[test]

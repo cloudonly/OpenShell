@@ -73,7 +73,8 @@ arrays replace. For example, `gateway.d/10-podman.toml` containing
 `[openshell]` with `version = 2` and `[openshell.drivers.podman]` with
 `userns = "keep-id"` changes only that key. Every drop-in config declares the
 version.
-Set `OPENSHELL_GATEWAY_CONFIG_DIR` to use a different directory.
+Set `OPENSHELL_GATEWAY_CONFIG_DIR` to use a different directory, or to an empty
+value to turn drop-in configs off.
 
 To override the path to the TOML config file entirely:
 

@@ -165,7 +165,8 @@ configured in the TOML file passed with **--config**.
 :   Directory of **\*.toml** drop-in configs merged over the **--config**
     file. Drop-in configs apply in lexical order and a later drop-in config wins. Each file must declare **version = 2**; a drop-in config may set only some keys of a table. Tables
     merge key by key; scalars and arrays replace. Defaults to **gateway.d**
-    next to the config file when that directory exists.
+    next to the config file when that directory exists. An empty value turns
+    drop-in configs off.
     Environment: **OPENSHELL_GATEWAY_CONFIG_DIR**.
 
 # CONFIGURATION PREFLIGHT

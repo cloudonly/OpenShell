@@ -59,6 +59,12 @@ enum ConfigCommand {
     Preflight(ConfigPreflightArgs),
 }
 
+/// Parse a path, accepting the empty string that clap's `PathBuf` parser rejects.
+fn allow_empty_path() -> impl clap::builder::TypedValueParser<Value = PathBuf> {
+    use clap::builder::TypedValueParser as _;
+    clap::builder::OsStringValueParser::new().map(PathBuf::from)
+}
+
 #[derive(clap::Args, Debug, Default)]
 struct ConfigPreflightArgs {
     /// Explicit configuration path. Overrides `OPENSHELL_GATEWAY_CONFIG` and XDG discovery.
@@ -68,7 +74,12 @@ struct ConfigPreflightArgs {
     path: Option<PathBuf>,
 
     /// Explicit drop-in directory. Defaults to `gateway.d` next to the base file.
-    #[arg(long, conflicts_with = "gateway_args")]
+    /// An empty value disables drop-in configs.
+    #[arg(
+        long,
+        conflicts_with = "gateway_args",
+        value_parser = allow_empty_path()
+    )]
     config_dir: Option<PathBuf>,
 
     /// Gateway daemon arguments to replay after `--`.
@@ -91,8 +102,9 @@ struct RunArgs {
     ///
     /// Drop-in configs apply in lexical order and a later drop-in config wins. Tables
     /// merge key by key; scalars and arrays replace. Defaults to `gateway.d`
-    /// next to the base file when that directory exists.
-    #[arg(long, env = "OPENSHELL_GATEWAY_CONFIG_DIR")]
+    /// next to the base file when that directory exists. An empty value
+    /// disables drop-in configs.
+    #[arg(long, env = "OPENSHELL_GATEWAY_CONFIG_DIR", value_parser = allow_empty_path())]
     config_dir: Option<PathBuf>,
 
     /// Operator-assigned name for this gateway installation.
@@ -1454,10 +1466,11 @@ fn resolve_config_sources(
             Ok(_) | Err(_) => Some(default_path),
         }
     };
-    // An explicit directory must exist. Otherwise use `gateway.d` beside the
-    // base file (or beside the default location) when it is there.
+    // An explicit directory must exist, and an empty one turns drop-in configs
+    // off. Otherwise use `gateway.d` beside the base file (or beside the
+    // default location) when it is there.
     let dir = if let Some(dir) = dir_override.or_else(|| args.config_dir.clone()) {
-        Some(dir)
+        (!dir.as_os_str().is_empty()).then_some(dir)
     } else {
         let anchor = match base.clone() {
             Some(path) => path,
@@ -3860,6 +3873,51 @@ require_client_auth = true
                         .unwrap()
                         .dir,
                     Some(other.clone())
+                );
+            });
+    }
+
+    #[test]
+    fn an_empty_config_dir_disables_drop_in_configs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path().join("gateway.toml");
+        std::fs::write(&base, "[openshell]\nversion = 2\n").unwrap();
+        std::fs::create_dir(tmp.path().join("gateway.d")).unwrap();
+        std::fs::write(
+            tmp.path().join("gateway.d").join("10-a.toml"),
+            "[openshell]\nversion = 2\n",
+        )
+        .unwrap();
+        let base_arg = base.to_str().unwrap();
+        // The flag, then the environment variable.
+        Environment::new()
+            .remove("OPENSHELL_GATEWAY_CONFIG")
+            .remove("OPENSHELL_GATEWAY_CONFIG_DIR")
+            .run(|| {
+                let (args, _) = parse_with_args(&[
+                    "openshell-gateway",
+                    "--config",
+                    base_arg,
+                    "--config-dir",
+                    "",
+                ]);
+                assert_eq!(
+                    super::resolve_config_sources(&args, None, None)
+                        .unwrap()
+                        .dir,
+                    None
+                );
+            });
+        Environment::new()
+            .remove("OPENSHELL_GATEWAY_CONFIG")
+            .set("OPENSHELL_GATEWAY_CONFIG_DIR", "")
+            .run(|| {
+                let (args, _) = parse_with_args(&["openshell-gateway", "--config", base_arg]);
+                assert_eq!(
+                    super::resolve_config_sources(&args, None, None)
+                        .unwrap()
+                        .dir,
+                    None
                 );
             });
     }
