@@ -19,6 +19,12 @@ e2e/rust/              # Rust CLI E2E tests
 tests/testkit/         # Support library for SDK-driven E2E suites
 ```
 
+## Performance benchmarks
+
+See [Docker driver performance benchmark](benchmarks/docker/README.md) for the
+paired Docker/OpenShell workload benchmark (`mise run perf:docker`) and the
+native/filtered seccomp broker microbenchmark (`mise run perf:seccomp`).
+
 ## Rust Tests
 
 Unit tests live inline with `#[cfg(test)] mod tests` blocks. Integration tests
