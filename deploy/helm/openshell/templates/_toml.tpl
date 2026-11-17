@@ -102,6 +102,10 @@ Top-level lists represent TOML arrays of tables and preserve their YAML order. *
 {{- $config := deepCopy (.Values.gatewayConfig | default dict) -}}
 {{- $legacyServer := .Values.server | default dict -}}
 {{- $gateway := get $config "openshell.gateway" | default dict -}}
+{{/* Keep the Kubernetes routing default when saved values omit it or use null. */}}
+{{- if or (not (hasKey $gateway "service_routing_enabled")) (eq (get $gateway "service_routing_enabled") nil) -}}
+{{- $_ := set $gateway "service_routing_enabled" false -}}
+{{- end -}}
 {{- if not (hasKey $gateway "name") -}}{{- $_ := set $gateway "name" (get $legacyServer "name" | default (include "openshell.fullname" .)) -}}{{- end -}}
 {{/* The Service and probes own listener ports, so keep runtime listeners aligned. */}}
 {{- $_ := set $gateway "bind_address" (printf "0.0.0.0:%v" .Values.service.port) -}}

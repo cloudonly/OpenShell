@@ -607,7 +607,9 @@ and `https://<workspace>--<sandbox>.<base-domain>/` for the unnamed endpoint.
 The base domain is the first wildcard DNS SAN in `server_sans`; gateways
 without SANs use the built-in `openshell.localhost`.
 
-`service_routing_enabled` defaults to `true`. Set it to `false` to stop publishing
+The core runtime defaults `service_routing_enabled` to `true`; Docker, Podman,
+and VM gateway behavior is unchanged. The Kubernetes Helm chart defaults it to
+`false`. Set it to `false` to stop publishing
 gateway service URLs and reject gateway-mediated application HTTP requests and
 WebSocket upgrades with `404`. Control-plane APIs, service declarations, direct
 supervisor listeners, and discovery remain available. The setting also accepts
@@ -620,6 +622,17 @@ gatewayConfig:
   openshell.gateway:
     service_routing_enabled: false
 ```
+
+For Kubernetes application ingress, enable and configure the supervisor app
+listener and provision an ingress integration separately. The chart does not
+enable either automatically. If both routing modes are disabled, startup logs
+warn that sandbox service routing is disabled.
+
+When upgrading a Helm installation that uses gateway service URLs, explicitly
+set `service_routing_enabled: true` in the canonical table above before the
+upgrade. Missing saved values receive the chart's `false` default; explicit
+`true` values remain enabled. This changes application forwarding only, not
+control-plane API access or the service-authentication default.
 
 With gateway routing disabled, `gateway_url` is empty and `gateway_service_urls`
 is empty. A configured application origin supplies the preferred URL; without

@@ -13,19 +13,40 @@ release:
   namespace: my-namespace
 
 tests:
-  - it: leaves gateway service routing enabled by the runtime default when omitted
+  - it: disables gateway service routing by default on Kubernetes
     template: templates/gateway-config.yaml
     asserts:
-      - notMatchRegex:
+      - matchRegex:
           path: data["gateway.toml"]
-          pattern: 'service_routing_enabled\s*='
+          pattern: '(?m)^service_routing_enabled\s*=\s*false$'
 
-  - it: disables gateway service routing through canonical configuration
+  - it: allows explicitly enabling gateway service routing
     template: templates/gateway-config.yaml
     set:
       gatewayConfig:
         openshell.gateway:
-          service_routing_enabled: false
+          service_routing_enabled: true
+    asserts:
+      - matchRegex:
+          path: data["gateway.toml"]
+          pattern: '(?m)^service_routing_enabled\s*=\s*true$'
+
+  - it: defaults gateway routing off when saved configuration omits the gateway table
+    template: templates/gateway-config.yaml
+    set:
+      gatewayConfig:
+        openshell.gateway: null
+    asserts:
+      - matchRegex:
+          path: data["gateway.toml"]
+          pattern: '(?m)^service_routing_enabled\s*=\s*false$'
+
+  - it: defaults gateway routing off when saved configuration omits the flag
+    template: templates/gateway-config.yaml
+    set:
+      gatewayConfig:
+        openshell.gateway:
+          service_routing_enabled: null
     asserts:
       - matchRegex:
           path: data["gateway.toml"]

@@ -407,6 +407,9 @@ topologySpreadConstraints: []
 gatewayConfig:
   openshell:
     version: 2
+  openshell.gateway:
+    # -- Opt in to gateway-mediated sandbox service URLs and forwarding. Disabled for Kubernetes; configure application-listener ingress or explicitly enable this path.
+    service_routing_enabled: false
 
 # Server configuration
 server:

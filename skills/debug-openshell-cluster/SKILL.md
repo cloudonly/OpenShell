@@ -1760,7 +1760,11 @@ Watches recheck bearer credentials and membership every second. Allow one refres
 interval for withdrawals; route lease expiry remains independently enforced.
 
 For incorrect public service URLs, inspect
-`[openshell.gateway].service_routing_enabled` first. When false, gateway URL fields
+`[openshell.gateway].service_routing_enabled` first. The Helm chart defaults it
+to false; the core runtime and non-Kubernetes deployments retain true. To retain
+gateway forwarding in a Helm deployment or upgrade, set
+`gatewayConfig."openshell.gateway".service_routing_enabled: true` explicitly.
+When false, gateway URL fields
 are empty and gateway application requests return `404`; direct listener and
 discovery behavior is independent. Then inspect
 `[openshell.supervisor.app_listener].public_url`. It is an external HTTPS origin
