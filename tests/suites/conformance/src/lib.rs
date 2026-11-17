@@ -22,6 +22,7 @@ mod network_egress;
 mod network_l7;
 mod persistent_workspace;
 mod policy_advisor;
+mod policy_update;
 mod process;
 mod settings;
 mod smoke;
