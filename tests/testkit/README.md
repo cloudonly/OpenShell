@@ -111,7 +111,8 @@ fails. A killed test process skips cleanup, so names are unique to the run.
   (binaries apply to every endpoint under `name`) that `policy::Endpoint`
   configures (`.rest(Access::Full)`, `.credential_binding(provider)`, ...).
   Pass the result to `cx.sandbox(..).policy(policy)`, or `policy::to_yaml`
-  for the CLI. `policy::from_yaml` reads a policy file, and
+  for the CLI. `policy::base_with(yaml)` adds YAML sections, such as L7
+  rules, to the base policy. `policy::from_yaml` reads a policy file, and
   `policy::set(&sandbox, &policy)` replaces a running sandbox's policy and
   waits until it is loaded.
   `testkit::PYTHON_BINARIES` names `python3` in `python_image()` images.
