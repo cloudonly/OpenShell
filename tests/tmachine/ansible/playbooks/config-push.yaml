@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Make the gateway push configuration to supervisors over their sessions
+# (`config_delivery_mode = "push"`) instead of having them poll for it. Every
+# installer merges /etc/openshell-test/gateway-overrides.toml into the
+# gateway's configuration (see openshell_gateway/tasks/merge-settings.yaml).
+---
+- name: Gateway configuration push for tests
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+
+    - name: Create the test settings directory
+      become: true
+      ansible.builtin.file:
+        path: /etc/openshell-test
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Push configuration to supervisors
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/openshell-test/gateway-overrides.toml
+        content: |
+          [openshell.gateway]
+          config_delivery_mode = "push"
+        owner: root
+        group: root
+        mode: "0644"
