@@ -65,10 +65,12 @@ fails. A killed test process skips cleanup, so names are unique to the run.
 
 - `cx.sandbox(suffix)` to build a sandbox with a run-unique name, then
   `create()` it or `create_ready()` to also wait for Ready. Set its image
-  with `image(..)` and its policy with `policy(..)`. The returned
+  with `image(..)`, its policy with `policy(..)`, and the template's
+  driver-keyed `driver_config(json)`. The returned
   `Sandbox` can wait for ready or finished, stop, start, exec or
   `poll_exec` until the output matches, read its config and draft policy, set
-  a setting, read `sandbox get` JSON with `get_json()`, and delete. Its
+  a setting, read `sandbox get` JSON with `get_json()`, read its supervisor
+  logs with `logs()` or wait for a line with `logs_until(..)`, and delete. Its
   `expect_listed`, `expect_absent` and `wait_absent` check list and get.
   Exec output has `success()`, `failure()` and `expect_stdout()`.
 - `cx.cli_sandbox(suffix)` for a sandbox only `openshell sandbox create`
@@ -80,7 +82,8 @@ fails. A killed test process skips cleanup, so names are unique to the run.
   create, so a create that fails after the gateway accepted it is still cleaned
   up. `cx.adopt(name)` returns a `Sandbox` handle for one the CLI created.
 - `cx.expect_compute_driver(name)` to fail unless the gateway runs only that
-  compute driver. Driver suites call it first.
+  compute driver. Driver suites call it first. `cx.compute_driver()` returns
+  the driver's name, for setup that depends on it, such as a driver config.
 - `testkit::base_image()` for the image to create sandboxes from or build on:
   `OPENSHELL_TEST_BASE_IMAGE`, or OpenShell's default sandbox image.
 - `testkit::python_image()` for sandboxes that run `python3`, curl, git, or
@@ -108,7 +111,9 @@ fails. A killed test process skips cleanup, so names are unique to the run.
   (binaries apply to every endpoint under `name`) that `policy::Endpoint`
   configures (`.rest(Access::Full)`, `.credential_binding(provider)`, ...).
   Pass the result to `cx.sandbox(..).policy(policy)`, or `policy::to_yaml`
-  for the CLI.
+  for the CLI. `policy::from_yaml` reads a policy file, and
+  `policy::set(&sandbox, &policy)` replaces a running sandbox's policy and
+  waits until it is loaded.
   `testkit::PYTHON_BINARIES` names `python3` in `python_image()` images.
 - `cx.import_profile(profile)` to import a provider profile and return its
   `id`, and `cx.create_provider(name, type, credentials)` to create a
