@@ -650,6 +650,12 @@ rootful and rootless, and the `k3s` and `k3s-ha` installers. The tests run on
 the K3s node, so the K3s installers set the chart's `server.hostGatewayIP` to
 the node's address.
 
+The `service-exposure` feature suite (`tests/suites/features/service-exposure`)
+exposes a service in a sandbox and checks how the gateway forwards the client's
+`Authorization` header. The test sends requests to the gateway's endpoint with
+the service URL's host as the Host header, so the test machine doesn't resolve
+service hosts. CI runs it on the same environments as `host-gateway`.
+
 Run the VM-backed Rust CLI e2e suite:
 
 ```shell
