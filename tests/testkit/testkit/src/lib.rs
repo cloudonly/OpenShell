@@ -41,6 +41,7 @@ mod provider;
 mod ready;
 mod registry;
 mod run;
+pub mod service;
 mod yaml_file;
 
 pub use cleanup::CLEANUP_TIMEOUT;
@@ -60,6 +61,7 @@ pub use provider::ProviderBuilder;
 pub use ready::check as check_ready;
 pub use registry::Test;
 pub use run::{TestInfo, run};
+pub use service::{SERVICE_REQUEST_TIMEOUT, ServiceResponse};
 pub use testkit_macros::test;
 pub use tonic::Code as GrpcCode;
 pub use yaml_file::YamlFile;

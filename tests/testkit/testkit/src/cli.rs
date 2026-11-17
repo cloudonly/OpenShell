@@ -52,6 +52,10 @@ impl Cli {
         }
     }
 
+    pub(crate) fn gateway(&self) -> &Gateway {
+        &self.gateway
+    }
+
     /// Check that the CLI reaches the gateway: `openshell status` must report
     /// it connected.
     pub async fn check_connected(&self) -> Result {
