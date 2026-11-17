@@ -1750,7 +1750,6 @@ Shared serving leases last at most fifteen seconds from issuance, independently
 of configuration renewal; include membership failure detection when measuring a
 partition's stale-owner interval. Storage failures prevent renewal.
 
-
 Application ingress consumers call the separate `openshell.v1.ServiceDiscovery`
 service, rather than `OpenShell`. Discovery snapshots share a one-second cache
 per workspace (16 cached workspaces, four concurrent collections). The gateway
@@ -1761,6 +1760,9 @@ Watches recheck bearer credentials and membership every second. Allow one refres
 interval for withdrawals; route lease expiry remains independently enforced.
 
 For incorrect public service URLs, inspect
+`[openshell.gateway].service_routing_enabled` first. When false, gateway URL fields
+are empty and gateway application requests return `404`; direct listener and
+discovery behavior is independent. Then inspect
 `[openshell.supervisor.app_listener].public_url`. It is an external HTTPS origin
 whose hostname matches `domain`; its port is independent of the listener port.
 Service responses identify the application and gateway paths separately. A
